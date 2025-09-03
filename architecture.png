@@ -1,1 +1,12 @@
 User WhatsApp → Backend API → NLP & ML Modules → Database → Automation → WhatsApp Alerts
+
+User (Mobile/SMS) --> WhatsApp Bot (Twilio) --> Backend (Django/Node.js)
+                                        |
+                                        v
+NLP Module (spaCy/Python) --> Parse SMS --> Store in Database (Firebase/PostgreSQL)
+                                        |
+                                        v
+ML Module (scikit-learn/Python) --> Analyze Spending --> Generate Insights/Reminders
+                                        |
+                                        v
+Dashboard (React + Chart.js) --> Visualize Trends (Optional Web Access)
