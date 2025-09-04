@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+.env
+service-account.json
+node_modules/
+frontend/android/
+frontend/ios/
+*.log
