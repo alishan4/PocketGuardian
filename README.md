@@ -26,9 +26,6 @@
 - ML module for spending prediction in progress
 - Database schema designed
 
-## Hackathon Roadmap
-- Day 1: Implement WhatsApp bot and user registration
-- Day 2: NLP for SMS/wallet parsing and automated reminders
-- Day 3: ML overspending prediction, dashboards, demo-ready deployment
+
 
 ## Demo Workflow
