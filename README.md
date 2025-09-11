@@ -1,31 +1,16 @@
 # PocketGuardian
+AI agent for tracking micro-payments and sending alerts.
 
-**PocketGuardian** is a mobile-first AI agent that helps freelancers, students, and small business owners in Pakistan track micro-payments, income, and savings, while providing automated reminders and spending insights.
-
-## Features
-- Parses SMS and wallet notifications to track income/expenses
-- Sends automated reminders for bills, loans, and subscriptions
-- ML-based alerts for overspending
-- Optional dashboard to visualize spending trends
-
-## Technology Stack
-- WhatsApp Bot: Twilio API / React Native mobile app
-- NLP: Python + spaCy/Transformers
-- ML: Python scikit-learn / TensorFlow
-- Backend: Node.js / Django
-- Database: PostgreSQL / Firebase
-- Dashboard (optional): React + Chart.js
-
-## Architecture
-![PocketGuardian Architecture](architecture.png)  <!-- Placeholder, we will add later -->
-
-## Current Status
-- MVP planning completed
-- WhatsApp bot prototype ready for integration
-- NLP module designed to parse SMS/wallet messages
-- ML module for spending prediction in progress
-- Database schema designed
+## Setup
+1. Clone repo: `git clone https://github.com/your-username/pocketguardian.git`
+2. Create virtual env: `python -m venv venv; source venv/bin/activate`
+3. Install dependencies: `pip install -r requirements.txt`
+4. Add `service-account.json` for Firebase.
+5. Run: `python backend/app.py`
 
 
 
-## Demo Workflow
+## Backend API
+- **POST /api/register**: Registers a user with phone, email, name, and FCM token.
+- **POST /api/transactions**: Stores transaction data (user_id, type, amount, description, timestamp) in Firestore. Validates type (income/expense) and user existence. Tested with Postman.
+- **POST /api/reminders**: Stores reminder data (user_id, message, due_date, sent, timestamp) in Firestore. Validates inputs and user existence. Tested with Postman.
