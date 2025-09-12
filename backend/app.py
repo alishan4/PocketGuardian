@@ -138,3 +138,20 @@ def add_reminder():
 
 if __name__ == '__main__':
     app.run(port=5000)
+
+    # Add reminder endpoint
+@app.route('/api/reminders', methods=['POST'])
+def add_reminder():
+    data = request.json
+    user_id = data.get('user_id')
+    message = data.get('message')
+    due_date = data.get('due_date')
+    if not user_id or not message or not due_date:
+        return jsonify({'error': 'Missing required fields'}), 400
+    db.collection('reminders').add({
+        'user_id': user_id,
+        'message': message,
+        'due_date': due_date,
+        'sent': False
+    })
+    return jsonify({'success': True})
