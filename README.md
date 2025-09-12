@@ -20,4 +20,7 @@ PocketGuardian parses SMS notifications, stores transactions in Firestore, sends
 - Testing: Postman
 - Deployment: Render
 
-
+## How We Built It
+- **Phase 1 (Sep 12)**: Set up Firestore, tested connectivity.
+- **Phase 2 (Sep 12-13)**: Built APIs, optimized schema to update `user_id` (e.g., `user123`) without new collections, added orchestration.
+- **Phase 3 (Next)**: NLP and ML agents.
