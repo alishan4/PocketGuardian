@@ -1,10 +1,23 @@
 # PocketGuardian
-AI agent for tracking micro-payments and sending alerts.
+
+A mobile-first AI agent for freelancers, students, and small business owners in Pakistan to track micro-payments, income, and savings with automated reminders and ML-based insights.
+
+## Overview
+PocketGuardian parses SMS notifications, stores transactions in Firestore, sends reminders via FCM, and provides ML alerts for overspending. Built with Flask backend, React Native frontend, and scikit-learn ML.
+
+## Features
+- SMS parsing with NLP (spaCy).
+- Transaction storage and reminders in Firestore.
+- ML alerts for overspending (K-Means clustering).
+- Dashboard with React Native and Chart.js.
+
+## Tech Stack
+- Backend: Flask (Python), Firebase Admin SDK
+- Database: Firebase Firestore
+- ML/NLP: scikit-learn, spaCy
+- Frontend: React Native
+- Notifications: FCM
+- Testing: Postman
+- Deployment: Render
 
 
-
-
-## Backend API
-- **POST /api/register**: Registers a user with phone, email, name, and FCM token.
-- **POST /api/transactions**: Stores transaction data (user_id, type, amount, description, timestamp) in Firestore. Validates type (income/expense) and user existence. Tested with Postman.
-- **POST /api/reminders**: Stores reminder data (user_id, message, due_date, sent, timestamp) in Firestore. Validates inputs and user existence. Tested with Postman.
