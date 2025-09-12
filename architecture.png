@@ -1,12 +1,13 @@
-User WhatsApp → Backend API → NLP & ML Modules → Database → Automation → WhatsApp Alerts
-
-User (Web: Streamlit) --> Django REST API (POST /messages) --> Backend (Django)
-                                     |
-                                     v
-NLP Module (spaCy) --> Parse SMS --> Store in SQLite
-                                     |
-                                     v
-ML Module (scikit-learn) --> Predict Spending --> Generate Insights/Reminders
-                                     |
-                                     v
-Dashboard (Streamlit + Chart.js) --> Visualize Trends
+User --> React Native App (SMS Reading, Dashboard)
+        |
+        | (HTTP Requests)
+        v
+Flask API (/api/register, /api/transactions, /api/reminders)
+        |
+        | (Firebase Admin SDK)
+        v
+Firestore (users, transactions, reminders)
+        |
+        | (ML Pipeline)
+        v
+AI Agent (NLP Parsing, ML Alerts) --> FCM Notifications
