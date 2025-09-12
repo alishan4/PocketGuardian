@@ -3,6 +3,7 @@ from firebase_admin import credentials, firestore, initialize_app
 import os
 from dotenv import load_dotenv
 import logging
+import re
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -26,21 +27,22 @@ except Exception as e:
 def register():
     data = request.json
     phone = data.get('phone')
-    if not phone:
-        logging.warning("Missing phone in register request")
-        return jsonify({'error': 'Phone required'}), 400
-    user_ref = db.collection('users').where('phone', '==', phone).get()
-    if user_ref:
-        logging.warning(f"User with phone {phone} already exists")
+    user_id = data.get('user_id')  # Add user_id for explicit ID control
+    if not phone or not user_id:
+        logging.warning("Missing phone or user_id in register request")
+        return jsonify({'error': 'Phone and user_id required'}), 400
+    user_ref = db.collection('users').document(user_id)
+    if user_ref.get().exists:
+        logging.warning(f"User with user_id {user_id} already exists")
         return jsonify({'error': 'User already exists'}), 409
     try:
-        db.collection('users').add({
+        user_ref.set({
             'phone': phone,
             'email': data.get('email', ''),
             'name': data.get('name', ''),
             'fcm_token': data.get('fcm_token', 'test-token')
         })
-        logging.info(f"User registered with phone {phone}")
+        logging.info(f"User registered with user_id {user_id}")
         return jsonify({'success': True})
     except Exception as e:
         logging.error(f"Failed to register user: {str(e)}")
@@ -91,7 +93,7 @@ def add_transaction():
         logging.error(f"Failed to store transaction: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
-# Add reminder endpoint (new)
+# Add reminder endpoint
 @app.route('/api/reminders', methods=['POST'])
 def add_reminder():
     data = request.json
@@ -100,7 +102,6 @@ def add_reminder():
     message = data.get('message')
     due_date = data.get('due_date')
 
-    # Validate inputs
     if not user_id:
         logging.warning("Missing user_id in reminder request")
         return jsonify({'error': 'User ID required'}), 400
@@ -111,7 +112,6 @@ def add_reminder():
         logging.warning("Invalid or missing due_date")
         return jsonify({'error': 'Valid due_date required'}), 400
 
-    # Check if user exists
     try:
         user_ref = db.collection('users').document(user_id).get()
         if not user_ref.exists:
@@ -121,7 +121,6 @@ def add_reminder():
         logging.error(f"Error checking user existence: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
-    # Store reminder
     try:
         db.collection('reminders').add({
             'user_id': user_id,
@@ -136,22 +135,93 @@ def add_reminder():
         logging.error(f"Failed to store reminder: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+# Orchestration endpoint for multi-agent system
+@app.route('/api/agent_orchestrate', methods=['POST'])
+def orchestrate_agents():
+    data = request.json
+    sms_text = data.get('sms_text')
+    user_id = data.get('user_id')
+    if not sms_text or not user_id:
+        logging.warning("Missing sms_text or user_id in orchestrate request")
+        return jsonify({'error': 'SMS text and user_id required'}), 400
+
+    # Verify user exists
+    try:
+        user_ref = db.collection('users').document(user_id).get()
+        if not user_ref.exists:
+            logging.warning(f"User not found: {user_id}")
+            return jsonify({'error': 'User not found'}), 404
+        # Update fcm_token if provided
+        if 'fcm_token' in data:
+            user_ref.reference.update({'fcm_token': data['fcm_token']})
+            logging.info(f"Updated fcm_token for user_id: {user_id}")
+    except Exception as e:
+        logging.error(f"Error checking/updating user: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+    # Agent 1: SMS Parser (basic regex for Pakistan SMS)
+    try:
+        amount_match = re.search(r'Rs\.?[\s]*(\d+[\.,]?\d*)', sms_text)
+        amount = float(amount_match.group(1).replace(',', '')) if amount_match else 500.0
+        type_ = 'income' if 'credited' in sms_text.lower() else 'expense'
+        parsed = {'type': type_, 'amount': amount, 'description': sms_text}
+        db.collection('transactions').add({
+            'user_id': user_id,
+            'type': parsed['type'],
+            'amount': parsed['amount'],
+            'description': parsed['description'],
+            'timestamp': firestore.SERVER_TIMESTAMP
+        })
+        db.collection('agent_logs').add({
+            'agent_name': 'SMS Parser',
+            'action': 'Parsed SMS',
+            'data': parsed,
+            'timestamp': firestore.SERVER_TIMESTAMP
+        })
+        logging.info(f"SMS Parser completed for user_id: {user_id}")
+    except Exception as e:
+        logging.error(f"SMS Parser failed: {str(e)}")
+        return jsonify({'error': 'Parser agent failed'}), 500
+
+    # Agent 2: ML Alert (threshold-based)
+    try:
+        transactions = db.collection('transactions').where('user_id', '==', user_id).get()
+        total_expenses = sum(doc.to_dict().get('amount', 0) for doc in transactions if doc.to_dict().get('type') == 'expense')
+        if total_expenses > 1000:
+            alert = {'overspending': True, 'total': total_expenses}
+            db.collection('agent_logs').add({
+                'agent_name': 'ML Alert',
+                'action': 'Generated alert',
+                'data': alert,
+                'timestamp': firestore.SERVER_TIMESTAMP
+            })
+        else:
+            alert = {'overspending': False}
+        logging.info(f"ML Alert completed for user_id: {user_id}, overspending: {alert['overspending']}")
+    except Exception as e:
+        logging.error(f"ML Alert failed: {str(e)}")
+        alert = {'overspending': False}
+
+    # Agent 3: Reminder Orchestrator
+    try:
+        db.collection('reminders').add({
+            'user_id': user_id,
+            'message': f"Overspending alert: {alert['total'] if alert['overspending'] else 'All good'}",
+            'due_date': '2025-09-15',
+            'sent': False,
+            'timestamp': firestore.SERVER_TIMESTAMP
+        })
+        db.collection('agent_logs').add({
+            'agent_name': 'Reminder Orchestrator',
+            'action': 'Queued reminder',
+            'data': {'sent': False},
+            'timestamp': firestore.SERVER_TIMESTAMP
+        })
+        logging.info(f"Reminder Orchestrator completed for user_id: {user_id}")
+    except Exception as e:
+        logging.error(f"Reminder Orchestrator failed: {str(e)}")
+
+    return jsonify({'success': True, 'parsed': parsed, 'alert': alert})
+
 if __name__ == '__main__':
     app.run(port=5000)
-
-    # Add reminder endpoint
-@app.route('/api/reminders', methods=['POST'])
-def add_reminder():
-    data = request.json
-    user_id = data.get('user_id')
-    message = data.get('message')
-    due_date = data.get('due_date')
-    if not user_id or not message or not due_date:
-        return jsonify({'error': 'Missing required fields'}), 400
-    db.collection('reminders').add({
-        'user_id': user_id,
-        'message': message,
-        'due_date': due_date,
-        'sent': False
-    })
-    return jsonify({'success': True})
