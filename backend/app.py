@@ -4,8 +4,12 @@ import os
 from dotenv import load_dotenv
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import timedelta, datetime
 import hashlib
+import sys
+
+# Set up sys.path for agents
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -16,13 +20,20 @@ logging.basicConfig(level=logging.DEBUG)
 
 # Initialize Firebase
 try:
-    cred = credentials.Certificate(os.getenv('FIREBASE_KEY'))
+    firebase_key = os.getenv('FIREBASE_KEY')
+    if not os.path.exists(firebase_key):
+        raise FileNotFoundError(f"Firebase key file not found at {firebase_key}")
+    cred = credentials.Certificate(firebase_key)
     initialize_app(cred)
     db = firestore.client()
-    logging.info("Firestore initialized successfully")
+    logging.info("Firestore initialized successfully in app.py")
 except Exception as e:
-    logging.error(f"Firestore initialization failed: {str(e)}")
+    logging.error(f"Firestore initialization failed in app.py: {str(e)}")
     raise
+
+# Import agents after Firebase initialization
+from agents.sms_parser import parse_sms
+from agents.reminder_agent import send_reminder
 
 # Register user endpoint
 @app.route('/api/register', methods=['POST'])
@@ -36,7 +47,7 @@ def register():
     user_ref = db.collection('users').document(user_id)
     if user_ref.get().exists:
         logging.warning(f"User with user_id {user_id} already exists")
-        return jsonify({'error': 'User already exists'}), 409
+        return jsonify({'error': 'User already exists'}), 400
     try:
         user_ref.set({
             'phone': phone,
@@ -208,14 +219,11 @@ def orchestrate_agents():
         logging.error(f"Error checking/updating user: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
-    # Agent 1: SMS Parser (regex for Pakistan SMS)
+    # Agent 1: SMS Parser (NLP with spaCy)
     try:
-        amount_match = re.search(r'Rs\.?[\s]*(\d+[\.,]?\d*)', sms_text)
-        amount = float(amount_match.group(1).replace(',', '')) if amount_match else 500.0
-        type_ = 'income' if 'credited' in sms_text.lower() else 'expense'
-        parsed = {'type': type_, 'amount': amount, 'description': sms_text}
-        # Generate transaction hash
-        transaction_hash = hashlib.sha256(f"{user_id}_{type_}_{amount}_{sms_text}".encode()).hexdigest()
+        parsed = parse_sms(sms_text)
+        # Deduplication
+        transaction_hash = hashlib.sha256(f"{user_id}_{parsed['type']}_{parsed['amount']}_{parsed['description']}".encode()).hexdigest()
         recent_time = datetime.now() - timedelta(hours=1)
         duplicates = db.collection('transactions')\
             .where('user_id', '==', user_id)\
@@ -225,24 +233,21 @@ def orchestrate_agents():
         if duplicates:
             logging.warning(f"Duplicate transaction detected for user_id: {user_id}")
             return jsonify({'error': 'Duplicate transaction'}), 409
-        batch = db.batch()
-        trans_ref = db.collection('transactions').document()
-        batch.set(trans_ref, {
+        # Store transaction
+        db.collection('transactions').add({
             'user_id': user_id,
-            'type': type_,
-            'amount': amount,
-            'description': sms_text,
+            'type': parsed['type'],
+            'amount': parsed['amount'],
+            'description': parsed['description'],
             'transaction_hash': transaction_hash,
             'timestamp': firestore.SERVER_TIMESTAMP
         })
-        log_ref = db.collection('agent_logs').document()
-        batch.set(log_ref, {
+        db.collection('agent_logs').add({
             'agent_name': 'SMS Parser',
-            'action': 'Parsed SMS',
+            'action': 'Parsed SMS with spaCy',
             'data': parsed,
             'timestamp': firestore.SERVER_TIMESTAMP
         })
-        batch.commit()
         logging.info(f"SMS Parser completed for user_id: {user_id}")
     except Exception as e:
         logging.error(f"SMS Parser failed: {str(e)}")
@@ -307,7 +312,20 @@ def orchestrate_agents():
         logging.error(f"Reminder Orchestrator failed: {str(e)}")
         return jsonify({'error': 'Reminder Orchestrator failed'}), 500
 
-    return jsonify({'success': True, 'parsed': parsed, 'alert': alert, 'reminder_id': reminder_id})
+    # Agent 4: Reminder Sender (FCM)
+    try:
+        reminder_result = send_reminder(user_id, reminder_id)
+        logging.info(f"Reminder Agent result: {reminder_result}")
+    except Exception as e:
+        logging.error(f"Reminder Agent failed: {str(e)}")
+        reminder_result = {'success': False, 'error': str(e)}
 
+    return jsonify({
+        'success': True,
+        'parsed': parsed,
+        'alert': alert,
+        'reminder_id': reminder_id,
+        'reminder_result': reminder_result
+    })
 if __name__ == '__main__':
-    app.run(port=5000)
+    app.run(host="0.0.0.0", port=5000)

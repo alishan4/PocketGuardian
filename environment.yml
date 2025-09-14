@@ -1,0 +1,16 @@
+name: pocketguardian
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - flask
+  - python-dotenv
+  - spacy=3.7.2
+  - scikit-learn
+  - pandas
+  - requests
+  - google-auth
+  - pip
+  - pip:
+      - firebase-admin
