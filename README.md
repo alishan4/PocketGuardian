@@ -15,15 +15,6 @@ transactions: {user_id, type, amount, description, timestamp} (deduplicated by u
 reminders: {user_id, message, due_date, sent, timestamp} (updated if matching user_id, message, due_date).
 agent_logs: {agent_name, action, data, timestamp} (time-series logs).
 
-Tech Stack
-
-Backend: Flask (Python)
-Database: Firestore
-AI/ML: scikit-learn, spaCy (planned)
-Notifications: FCM
-Testing: Postman
-Deployment: Render
-
 
 How We Built It
 
