@@ -1,4 +1,4 @@
-from firebase_admin import firestore, get_app
+from firebase_admin import firestore, get_app, initialize_app, credentials
 from google.oauth2 import service_account
 import requests
 from dotenv import load_dotenv
@@ -8,13 +8,26 @@ from datetime import datetime
 
 logging.basicConfig(level=logging.DEBUG)
 
-# Use existing Firebase app
+load_dotenv()
+
+# Conditional Firebase initialization
 try:
-    db = firestore.client()
-    logging.info("Firestore client accessed in reminder_agent.py")
-except Exception as e:
-    logging.error(f"Firestore access failed in reminder_agent.py: {str(e)}")
-    raise
+    get_app()
+except ValueError:
+    try:
+        firebase_key = os.getenv('FIREBASE_KEY')
+        if not os.path.exists(firebase_key):
+            raise FileNotFoundError(f"Firebase key file not found at {firebase_key}")
+        cred = credentials.Certificate(firebase_key)
+        initialize_app(cred)
+        logging.info("Firestore initialized in reminder_agent.py (standalone)")
+    except Exception as e:
+        logging.error(f"Firestore initialization failed in reminder_agent.py: {str(e)}")
+        raise
+
+# Use Firebase client
+db = firestore.client()
+logging.info("Firestore client accessed in reminder_agent.py")
 
 # FCM HTTP v1 setup
 def get_access_token():

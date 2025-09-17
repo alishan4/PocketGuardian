@@ -33,6 +33,7 @@ except Exception as e:
 
 # Import agents after Firebase initialization
 from agents.sms_parser import parse_sms
+from agents.ml_alert import detect_overspending
 from agents.reminder_agent import send_reminder
 
 # Register user endpoint
