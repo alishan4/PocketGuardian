@@ -19,7 +19,4 @@ PocketGuardian uses AI (NLP and ML) to parse SMS/wallet notifications (e.g., Eas
 - **Frontend**: React Native with react-native-chart-kit
 - **Notifications**: Gmail SMTP (email) and Firebase Cloud Messaging (push)
 
-## Setup Instructions
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/pocketguardian.git
+
