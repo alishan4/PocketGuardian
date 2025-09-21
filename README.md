@@ -1,8 +1,25 @@
-#PocketGuardian: AI Multi-Agent Fintech System
-Domain: Fintech (Financial Inclusion for Pakistan's freelancers/small businesses).
-Overview: A multi-agent AI system parsing SMS for micro-payments, detecting overspending with ML, and sending reminders via FCM. Optimized for scalability with efficient Firestore updates.
-Multi-Agent System:
+# PocketGuardian
 
-2. **Fraud Detection Agent**: Hugging Face BERT for fraud scoring.
-3. **ML Alert Agent**: K-Means + Logistic Regression for risk scoring.
+A mobile-first AI agent to help freelancers, students, and small business owners in Pakistan track micro-payments, income, and savings, with automated reminders and spending insights.
 
+## Overview
+PocketGuardian uses AI (NLP and ML) to parse SMS/wallet notifications (e.g., Easypaisa, JazzCash), track transactions, send reminders for bills, and alert users about overspending. Built for scalability and demonstrated at AI hackathons.
+
+## Features
+- **Transaction Tracking**: Parses SMS for income/expense data using NLP (spaCy with Urdu support).
+- **Automated Reminders**: Sends email/push notifications for bills and subscriptions.
+- **Overspending Alerts**: ML-based anomaly detection (scikit-learn IsolationForest).
+- **Dashboard**: Visualizes spending trends with Chart.js in a React Native app.
+
+## Tech Stack
+- **Backend**: Flask (Python) for REST API
+- **Database**: Firebase Firestore (free tier) or SQLite
+- **NLP**: spaCy + urduhack for English/Urdu SMS parsing
+- **ML**: scikit-learn/TensorFlow for overspending prediction
+- **Frontend**: React Native with react-native-chart-kit
+- **Notifications**: Gmail SMTP (email) and Firebase Cloud Messaging (push)
+
+## Setup Instructions
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-username/pocketguardian.git
