@@ -12,12 +12,13 @@ sms_text = st.text_area("SMS Text", value="Rs.1500 unauthorized debit from bank"
 if st.button("Analyze SMS"):
     # Call backend API
     try:
-       # This is the CORRECT line
-backend_url = "https://alishan4-pocketguardian-backend.hf.space/api/agent_orchestrate"
-response = requests.post(
-    backend_url,
-    json={"user_id": user_id, "sms_text": sms_text}
-)
+        # CORRECTED INDENTATION: The following lines are now correctly placed inside the 'try' block.
+        backend_url = "https://alishan4-pocketguardian-backend.hf.space/api/agent_orchestrate"
+        response = requests.post(
+            backend_url,
+            json={"user_id": user_id, "sms_text": sms_text}
+        )
+        
         if response.status_code == 200:
             result = response.json()
             st.success("Analysis Complete!")
@@ -41,9 +42,12 @@ response = requests.post(
             if not reminder.get("success"):
                 st.write(f"Error: {reminder.get('error', 'Unknown')}")
         else:
-            st.error(f"API Error: {response.text}")
+            st.error(f"API Error: {response.status_code} - {response.text}")
+            
+    except requests.exceptions.RequestException as e:
+        st.error(f"Network request failed: Could not connect to the backend. Please ensure it is running. Error: {e}")
     except Exception as e:
-        st.error(f"Request failed: {str(e)}")
+        st.error(f"An unexpected error occurred: {e}")
 
 # Footer
 st.markdown("---")
