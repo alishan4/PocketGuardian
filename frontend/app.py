@@ -12,10 +12,12 @@ sms_text = st.text_area("SMS Text", value="Rs.1500 unauthorized debit from bank"
 if st.button("Analyze SMS"):
     # Call backend API
     try:
-        response = requests.post(
-            "http://localhost:5000/api/agent_orchestrate",
-            json={"user_id": user_id, "sms_text": sms_text}
-        )
+       # This is the CORRECT line
+backend_url = "https://alishan4-pocketguardian-backend.hf.space/api/agent_orchestrate"
+response = requests.post(
+    backend_url,
+    json={"user_id": user_id, "sms_text": sms_text}
+)
         if response.status_code == 200:
             result = response.json()
             st.success("Analysis Complete!")
