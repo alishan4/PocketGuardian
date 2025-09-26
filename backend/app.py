@@ -15,20 +15,50 @@ logging.basicConfig(level=logging.DEBUG)
 app = Flask(__name__)
 
 # --- MODIFIED FIREBASE INITIALIZATION ---
+# db = None
+# try:
+#     firebase_key = os.getenv('FIREBASE_KEY')
+#     if firebase_key:
+#         logging.info("Attempting to initialize Firebase from FIREBASE_KEY secret...")
+#         cred_dict = json.loads(firebase_key)
+#         cred = credentials.Certificate(cred_dict)
+#         initialize_app(cred)
+#         db = firestore.client()
+#         logging.info("Firestore initialized successfully from secret in app.py")
+#     else:
+#         logging.warning("FIREBASE_KEY secret not found. App will run without Firestore functionality.")
+# except Exception as e:
+#     logging.error(f"Firestore initialization failed: {str(e)}")
+
+# --- CLEAN FIREBASE INITIALIZATION ---
 db = None
 try:
-    firebase_key = os.getenv('FIREBASE_KEY')
-    if firebase_key:
-        logging.info("Attempting to initialize Firebase from FIREBASE_KEY secret...")
-        cred_dict = json.loads(firebase_key)
-        cred = credentials.Certificate(cred_dict)
-        initialize_app(cred)
-        db = firestore.client()
-        logging.info("Firestore initialized successfully from secret in app.py")
+    if firestore is not None:
+        firebase_key = os.getenv("FIREBASE_KEY")
+        if firebase_key:
+            if os.path.exists(firebase_key):
+                # FIREBASE_KEY is a file path
+                cred = credentials.Certificate(firebase_key)
+            else:
+                # FIREBASE_KEY contains raw JSON
+                cred_dict = json.loads(firebase_key)
+                cred = credentials.Certificate(cred_dict)
+            initialize_app(cred)
+            db = firestore.client()
+            logging.info("✅ Firestore initialized successfully")
+        elif os.path.exists("service-account.json"):
+            cred = credentials.Certificate("service-account.json")
+            initialize_app(cred)
+            db = firestore.client()
+            logging.info("✅ Firestore initialized from service-account.json")
+        else:
+            logging.warning("⚠️ No FIREBASE_KEY or service-account.json found — running in demo mode.")
     else:
-        logging.warning("FIREBASE_KEY secret not found. App will run without Firestore functionality.")
+        logging.warning("⚠️ firebase_admin not installed — running in demo mode.")
 except Exception as e:
-    logging.error(f"Firestore initialization failed: {str(e)}")
+    logging.error(f"❌ Firestore initialization failed: {e}")
+    db = None
+
     # We don't 'raise' the error anymore, allowing the app to run for health checks
     # raise
 
@@ -89,6 +119,71 @@ def add_transaction():
         logging.error(f"Transaction addition failed: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# @app.route('/api/agent_orchestrate', methods=['POST'])
+# def orchestrate_agents():
+#     if not db:
+#         return jsonify({'success': False, 'error': 'Database not configured'}), 503
+#     try:
+#         data = request.get_json()
+#         user_id = data.get('user_id')
+#         sms_text = data.get('sms_text')
+#         if not user_id or not sms_text:
+#             return jsonify({'success': False, 'error': 'Missing user_id or sms_text'}), 400
+#         # Step 1: Parse SMS
+#         parsed_data = parse_sms(sms_text)
+#         logging.info(f"Parsed SMS: {parsed_data}")
+#         # Step 2: Add to transactions
+#         transaction_id = hashlib.sha256(f"{user_id}{parsed_data['amount']}{sms_text}{datetime.now()}".encode()).hexdigest()
+#         db.collection('transactions').document(transaction_id).set({
+#             'user_id': user_id,
+#             'amount': parsed_data['amount'],
+#             'type': parsed_data['type'],
+#             'description': parsed_data['description'],
+#             'timestamp': firestore.SERVER_TIMESTAMP
+#         })
+#         db.collection('agent_logs').add({
+#             'agent_name': 'SMS Parser',
+#             'action': 'Parsed SMS',
+#             'data': parsed_data,
+#             'timestamp': firestore.SERVER_TIMESTAMP
+#         })
+#         # Step 3: Fraud Detection
+#         fraud_result = detect_fraud(sms_text)
+#         db.collection('agent_logs').add({
+#             'agent_name': 'Fraud Detector',
+#             'action': 'Checked fraud',
+#             'data': fraud_result,
+#             'timestamp': firestore.SERVER_TIMESTAMP
+#         })
+#         # Step 4: Overspending Alert
+#         alert_result = detect_overspending(user_id)
+#         db.collection('agent_logs').add({
+#             'agent_name': 'ML Alert',
+#             'action': 'Checked overspending',
+#             'data': alert_result,
+#             'timestamp': firestore.SERVER_TIMESTAMP
+#         })
+#         # Step 5: Send Reminder if fraud or overspending
+#         reminder_id = f"{user_id}_{datetime.now().strftime('%Y%m%d')}"
+#         message = f"Alert: {'Potential fraud detected' if fraud_result['fraud'] else 'Overspending detected' if alert_result['overspending'] else 'Transaction recorded'}"
+#         db.collection('reminders').document(reminder_id).set({
+#             'user_id': user_id,
+#             'message': message,
+#             'due_date': datetime.now().strftime('%Y-%m-%d'),
+#             'sent': False
+#         })
+#         reminder_result = send_reminder(user_id, reminder_id)
+#         return jsonify({
+#             'success': True,
+#             'parsed': parsed_data,
+#             'fraud': fraud_result,
+#             'alert': alert_result,
+#             'reminder_id': reminder_id,
+#             'reminder_result': reminder_result
+#         })
+#     except Exception as e:
+#         logging.error(f"Orchestration failed: {str(e)}")
+#         return jsonify({'success': False, 'error': str(e)}), 500
 @app.route('/api/agent_orchestrate', methods=['POST'])
 def orchestrate_agents():
     if not db:
@@ -97,60 +192,131 @@ def orchestrate_agents():
         data = request.get_json()
         user_id = data.get('user_id')
         sms_text = data.get('sms_text')
+
         if not user_id or not sms_text:
             return jsonify({'success': False, 'error': 'Missing user_id or sms_text'}), 400
+
         # Step 1: Parse SMS
         parsed_data = parse_sms(sms_text)
         logging.info(f"Parsed SMS: {parsed_data}")
-        # Step 2: Add to transactions
-        transaction_id = hashlib.sha256(f"{user_id}{parsed_data['amount']}{sms_text}{datetime.now()}".encode()).hexdigest()
-        db.collection('transactions').document(transaction_id).set({
-            'user_id': user_id,
-            'amount': parsed_data['amount'],
-            'type': parsed_data['type'],
-            'description': parsed_data['description'],
-            'timestamp': firestore.SERVER_TIMESTAMP
-        })
-        db.collection('agent_logs').add({
-            'agent_name': 'SMS Parser',
-            'action': 'Parsed SMS',
-            'data': parsed_data,
-            'timestamp': firestore.SERVER_TIMESTAMP
-        })
-        # Step 3: Fraud Detection
+
+        # Step 2: Fraud Detection first (decides whether to store transaction)
         fraud_result = detect_fraud(sms_text)
         db.collection('agent_logs').add({
+            'user_id': user_id,
             'agent_name': 'Fraud Detector',
             'action': 'Checked fraud',
             'data': fraud_result,
             'timestamp': firestore.SERVER_TIMESTAMP
         })
-        # Step 4: Overspending Alert
-        alert_result = detect_overspending(user_id)
-        db.collection('agent_logs').add({
-            'agent_name': 'ML Alert',
-            'action': 'Checked overspending',
-            'data': alert_result,
+
+        if fraud_result['fraud']:
+            # Fraud → ALERT but do not store transaction
+            alert_id = f"{user_id}_fraud_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            db.collection('alerts').document(alert_id).set({
+                'user_id': user_id,
+                'type': 'fraud',
+                'message': '⚠️ Fraudulent SMS detected!',
+                'data': fraud_result,
+                'timestamp': firestore.SERVER_TIMESTAMP,
+                'read': False
+            })
+
+            reminder_id = f"{user_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            reminder_result = send_reminder(user_id, reminder_id, db)
+
+            return jsonify({
+                'success': True,
+                'fraud': fraud_result,
+                'alert': None,
+                'transaction': None,
+                'reminder_id': reminder_id,
+                'reminder_result': reminder_result
+            }), 200
+
+        # Step 3: Store as valid transaction
+        transaction_id = hashlib.sha256(
+            f"{user_id}{parsed_data['amount']}{sms_text}{datetime.now()}".encode()
+        ).hexdigest()
+        db.collection('transactions').document(transaction_id).set({
+            'user_id': user_id,
+            'amount': parsed_data['amount'],
+            'type': parsed_data['type'],
+            'description': parsed_data['description'],
+            'currency': parsed_data['currency'],
             'timestamp': firestore.SERVER_TIMESTAMP
         })
-        # Step 5: Send Reminder if fraud or overspending
-        reminder_id = f"{user_id}_{datetime.now().strftime('%Y%m%d')}"
-        message = f"Alert: {'Potential fraud detected' if fraud_result['fraud'] else 'Overspending detected' if alert_result['overspending'] else 'Transaction recorded'}"
-        db.collection('reminders').document(reminder_id).set({
+        db.collection('agent_logs').add({
             'user_id': user_id,
-            'message': message,
-            'due_date': datetime.now().strftime('%Y-%m-%d'),
-            'sent': False
+            'agent_name': 'SMS Parser',
+            'action': 'Parsed SMS + stored transaction',
+            'data': parsed_data,
+            'timestamp': firestore.SERVER_TIMESTAMP
         })
-        reminder_result = send_reminder(user_id, reminder_id)
+
+        # Step 4: Update user spending counters
+        user_ref = db.collection('users').document(user_id)
+        user_doc = user_ref.get()
+        weekly_limit = 10000
+        monthly_limit = 100000
+        weekly_spent = 0.0
+        monthly_spent = 0.0
+
+        if user_doc.exists:
+            user_data = user_doc.to_dict()
+            weekly_limit = user_data.get("weekly_limit", 10000)
+            monthly_limit = user_data.get("monthly_limit", 100000)
+            weekly_spent = user_data.get("weekly_spent", 0.0)
+            monthly_spent = user_data.get("monthly_spent", 0.0)
+
+        # Update counters
+        amount = float(parsed_data['amount'])
+        weekly_spent += amount
+        monthly_spent += amount
+        user_ref.update({
+            "weekly_spent": weekly_spent,
+            "monthly_spent": monthly_spent,
+            "last_updated": datetime.now().isoformat()
+        })
+
+        # Step 5: Overspending detection
+        overspending = {}
+        if weekly_spent > weekly_limit or monthly_spent > monthly_limit:
+            overspending = {
+                "overspending": True,
+                "weekly_spent": weekly_spent,
+                "monthly_spent": monthly_spent,
+                "weekly_limit": weekly_limit,
+                "monthly_limit": monthly_limit,
+                "message": "⚠️ Overspending detected"
+            }
+            alert_id = f"{user_id}_overspending_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            db.collection('alerts').document(alert_id).set({
+                'user_id': user_id,
+                'type': 'overspending',
+                'message': '⚠️ Overspending detected!',
+                'data': overspending,
+                'timestamp': firestore.SERVER_TIMESTAMP,
+                'read': False
+            })
+
+            reminder_id = f"{user_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            reminder_result = send_reminder(user_id, reminder_id, db)
+        else:
+            overspending = {"overspending": False}
+            reminder_id = None
+            reminder_result = {"success": False, "error": "No reminder needed"}
+
         return jsonify({
-            'success': True,
-            'parsed': parsed_data,
-            'fraud': fraud_result,
-            'alert': alert_result,
-            'reminder_id': reminder_id,
-            'reminder_result': reminder_result
-        })
+            "success": True,
+            "parsed": parsed_data,
+            "fraud": fraud_result,
+            "alert": overspending,
+            "transaction_id": transaction_id,
+            "reminder_id": reminder_id,
+            "reminder_result": reminder_result
+        }), 200
+
     except Exception as e:
         logging.error(f"Orchestration failed: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
